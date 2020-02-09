@@ -1,18 +1,17 @@
 package main
 
 import (
+	"core"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
-)
 
-import (
-	"core"
 	. "env"
 	"printer"
 	"reader"
 	"readline"
+
 	. "types"
 )
 
@@ -139,11 +138,20 @@ func eval_ast(ast MalType, env EnvType) (MalType, error) {
 	}
 }
 
+// var tab []byte
+
+// func EVAL(ast MalType, env EnvType) (MalType, error) {
+// 	tab = append(tab, ' ', ' ')
+// 	defer func() {
+// 		tab = tab[:len(tab)-2]
+// 	}()
+// 	fmt.Printf("%s%v\n", string(tab), printer.Pr_str(ast, true))
+// 	return _EVAL(ast, env)
+// }
+
 func EVAL(ast MalType, env EnvType) (MalType, error) {
 	var e error
 	for {
-
-		//fmt.Printf("EVAL: %v\n", printer.Pr_str(ast, true))
 		switch ast.(type) {
 		case List: // continue
 		default:
@@ -340,6 +348,13 @@ func main() {
 	rep("(def! not (fn* (a) (if a false true)))")
 	rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \"\nnil)\")))))")
 	rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))")
+	// rep(`(println '(+ 33 "gg"))`)
+	// rep(`(println (json-encode '(+ 33 "gg")))`)
+	// rep(`(println (json-decode (json-encode '(+ 33))))`)
+	// rep(`(println (json-decode (json-encode '(+ 33 "gg"))))`)
+	// rep(`(println (str "aa" "gg"))`)
+	// rep(`(println (json-encode '(str "aa" "gg")))`)
+	// rep(`(println (eval (json-decode (json-encode '(str "aa" "gg")))))`)
 
 	// called with mal script to load and eval
 	if len(os.Args) > 1 {
@@ -356,7 +371,7 @@ func main() {
 	}
 
 	// repl loop
-	rep("(println (str \"Mal [\" *host-language* \"]\"))")
+	// rep("(println (str \"Mal [\" *host-language* \"]\"))")
 	for {
 		text, err := readline.Readline("user> ")
 		text = strings.TrimRight(text, "\n")

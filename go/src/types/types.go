@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -48,7 +50,7 @@ func Number_Q(obj MalType) bool {
 
 // Symbols
 type Symbol struct {
-	Val string
+	Val string `json:"symbol"`
 }
 
 func Symbol_Q(obj MalType) bool {
@@ -74,8 +76,8 @@ func String_Q(obj MalType) bool {
 
 // Functions
 type Func struct {
-	Fn   func([]MalType) (MalType, error)
-	Meta MalType
+	Fn   func([]MalType) (MalType, error) `json:"fn"`
+	Meta MalType                          `json:"meta,omitempty"`
 }
 
 func Func_Q(obj MalType) bool {
@@ -128,8 +130,92 @@ func Apply(f_mt MalType, a []MalType) (MalType, error) {
 
 // Lists
 type List struct {
-	Val  []MalType
-	Meta MalType
+	Val  ListMalType `json:"list"`
+	Meta MalType     `json:"meta,omitempty"`
+}
+
+type ListMalType []MalType
+
+// UnmarshalJSON custom unmarshaller for J
+func (j *ListMalType) UnmarshalJSON(b []byte) (err error) {
+	rawJSONAST := []json.RawMessage{}
+	err = JSONUnmarshal(b, &rawJSONAST)
+	if err != nil {
+		return err
+	}
+
+	for _, raw := range rawJSONAST {
+		switch raw[0] {
+		case '{':
+			m := map[string]interface{}{}
+			err = json.Unmarshal(raw, &m)
+			if err != nil {
+				return err
+			}
+			if _, ok := m["symbol"]; ok {
+				res := Symbol{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of symbol failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else if _, ok := m["atom"]; ok {
+				res := Atom{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of atom failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else if _, ok := m["list"]; ok {
+				res := List{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of list failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else if _, ok := m["hashmap"]; ok {
+				res := HashMap{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of hashmap failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else if _, ok := m["vector"]; ok {
+				res := Vector{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of vector failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else if _, ok := m["fn"]; ok { // won't work
+				res := Func{}
+				if e := json.Unmarshal(raw, &res); e != nil {
+					return fmt.Errorf("json-decode of fn failed: %v", e)
+				}
+				*j = append(*j, res)
+			} else {
+				return errors.New("json-decode of unknown type")
+			}
+		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			item := json.Number("")
+			err = JSONUnmarshal(raw, &item)
+			if err != nil {
+				return err
+			}
+			*j = append(*j, item)
+		default:
+			var item interface{}
+			err = JSONUnmarshal(raw, &item)
+			if err != nil {
+				return err
+			}
+			*j = append(*j, item)
+		}
+	}
+	return nil
+}
+
+func JSONUnmarshal(buffer []byte, ast interface{}) error {
+	reader := bytes.NewReader(buffer)
+	decoder := json.NewDecoder(reader)
+	decoder.UseNumber()
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(ast)
 }
 
 func NewList(a ...MalType) MalType {
@@ -143,8 +229,8 @@ func List_Q(obj MalType) bool {
 
 // Vectors
 type Vector struct {
-	Val  []MalType
-	Meta MalType
+	Val  []MalType `json:"vector"`
+	Meta MalType   `json:"meta,omitempty"`
 }
 
 func Vector_Q(obj MalType) bool {
@@ -165,8 +251,8 @@ func GetSlice(seq MalType) ([]MalType, error) {
 
 // Hash Maps
 type HashMap struct {
-	Val  map[string]MalType
-	Meta MalType
+	Val  map[string]MalType `json:"hashmap"`
+	Meta MalType            `json:"meta,omitempty"`
 }
 
 func NewHashMap(seq MalType) (MalType, error) {
@@ -195,8 +281,8 @@ func HashMap_Q(obj MalType) bool {
 
 // Atoms
 type Atom struct {
-	Val  MalType
-	Meta MalType
+	Val  MalType `json:"atom"`
+	Meta MalType `json:"meta,omitempty"`
 }
 
 func (a *Atom) Set(val MalType) MalType {

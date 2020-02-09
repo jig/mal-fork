@@ -1,17 +1,16 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
-	"time"
-)
-
-import (
 	"printer"
 	"reader"
 	"readline"
+	"strings"
+	"time"
+
 	. "types"
 )
 
@@ -431,6 +430,40 @@ func swap_BANG(a []MalType) (MalType, error) {
 	return res, nil
 }
 
+func unType(ast interface{}) interface{} {
+	switch a := ast.(type) {
+	case ListMalType:
+		newAST := make([]interface{}, len(a))
+		for i, item := range a {
+			newAST[i] = unType(item)
+		}
+		return newAST
+	default:
+		return a
+	}
+}
+
+func jsonEncode(a []MalType) (MalType, error) {
+	b, e := json.Marshal(a[0])
+	if e != nil {
+		return nil, fmt.Errorf("json-encode failed: %v", e)
+	}
+	return string(b), nil
+}
+
+func jsonDecode(a []MalType) (MalType, error) {
+	if !String_Q(a[0]) {
+		return nil, errors.New("jsonDecode called with non-string")
+	}
+
+	str := strings.Trim(a[0].(string), " \r\n")
+	astJ := List{}
+	if err := JSONUnmarshal([]byte(str), &astJ); err != nil {
+		return nil, err
+	}
+	return unType(astJ), nil
+}
+
 // core namespace
 var NS = map[string]MalType{
 	"=":       call2b(Equal_Q),
@@ -499,6 +532,8 @@ var NS = map[string]MalType{
 	"deref":       call1e(deref),
 	"reset!":      call2e(reset_BANG),
 	"swap!":       callNe(swap_BANG),
+	"json-encode": call1e(jsonEncode),
+	"json-decode": call1e(jsonDecode),
 }
 
 // callXX functions check the number of arguments
