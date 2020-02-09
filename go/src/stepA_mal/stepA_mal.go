@@ -138,18 +138,29 @@ func eval_ast(ast MalType, env EnvType) (MalType, error) {
 	}
 }
 
-// var tab []byte
+var tab []rune
 
-// func EVAL(ast MalType, env EnvType) (MalType, error) {
-// 	tab = append(tab, ' ', ' ')
-// 	defer func() {
-// 		tab = tab[:len(tab)-2]
-// 	}()
-// 	fmt.Printf("%s%v\n", string(tab), printer.Pr_str(ast, true))
-// 	return _EVAL(ast, env)
-// }
+var EVAL func(MalType, EnvType) (MalType, error)
 
-func EVAL(ast MalType, env EnvType) (MalType, error) {
+func init() {
+	EVAL = _EVAL
+}
+
+func _EVAL_TRACE(ast MalType, env EnvType) (rast MalType, err error) {
+	tab = append(tab, ' ', '│')
+	defer func() {
+		if err != nil {
+			fmt.Printf("%s ↝%v\n", string(tab), printer.Pr_str(err, true))
+		} else {
+			fmt.Printf("%s └%v\n", string(tab), printer.Pr_str(rast, true))
+		}
+		tab = tab[:len(tab)-2]
+	}()
+	fmt.Printf("%s%v\n", string(tab), printer.Pr_str(ast, true))
+	return _EVAL(ast, env)
+}
+
+func _EVAL(ast MalType, env EnvType) (MalType, error) {
 	var e error
 	for {
 		switch ast.(type) {
@@ -341,12 +352,22 @@ func main() {
 	repl_env.Set(Symbol{"eval"}, Func{func(a []MalType) (MalType, error) {
 		return EVAL(a[0], repl_env)
 	}, nil})
+	repl_env.Set(Symbol{"trace"}, Func{func(a []MalType) (MalType, error) {
+		if a[0].(bool) {
+			EVAL = _EVAL_TRACE
+		} else {
+			EVAL = _EVAL
+		}
+		return true, nil
+	}, nil})
 	repl_env.Set(Symbol{"*ARGV*"}, List{})
 
 	// core.mal: defined using the language itself
 	rep("(def! *host-language* \"go\")")
 	rep("(def! not (fn* (a) (if a false true)))")
 	rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \"\nnil)\")))))")
+	rep(" (+ 2 2)")
+	rep("(do (trace true) (+ 2 (* 3 (- 4 2))) (trace false))")
 	rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))")
 	// rep(`(println '(+ 33 "gg"))`)
 	// rep(`(println (json-encode '(+ 33 "gg")))`)
